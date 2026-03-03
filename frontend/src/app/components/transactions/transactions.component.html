@@ -1,0 +1,179 @@
+<div class="transactions-container">
+  <a routerLink="/dashboard" class="back-btn">
+    <span class="back-icon">←</span>
+    Back to Dashboard
+  </a>
+  
+  <div class="header">
+    <h1>Transactions</h1>
+    <div class="summary">
+      <span class="summary-item">
+        <strong>{{ filteredTransactions().length }}</strong> transactions
+      </span>
+      <span class="summary-item">
+        Total: <strong>₹{{ getTotalAmount().toLocaleString() }}</strong>
+      </span>
+      @if (monthFilter()) {
+        <span class="summary-item highlight-month">
+          📅 {{ selectedMonthLabel() }}: <strong>₹{{ getTotalAmount().toLocaleString() }}</strong>
+        </span>
+      }
+      @if (monthWithMostTransactions()) {
+        <span class="summary-item highlight">
+          🏆 Most Active: <strong>{{ monthWithMostTransactions()!.label }}</strong> 
+          ({{ monthWithMostTransactions()!.transactionCount }} transactions)
+        </span>
+      }
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="filters-card">
+    <h3>Filters</h3>
+    <div class="filters-grid">
+      <div class="filter-group">
+        <label>Month</label>
+        <select [(ngModel)]="monthFilter" (change)="applyFilters()">
+          <option value="">All Months</option>
+          @for (month of availableMonths(); track month.value) {
+            <option [value]="month.value">{{ month.label }} ({{ month.transactionCount }})</option>
+          }
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label>Category</label>
+        <select [(ngModel)]="categoryFilter" (change)="applyFilters()">
+          <option value="">All Categories</option>
+          @for (category of categories(); track category) {
+            <option [value]="category">{{ category }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label>Merchant</label>
+        <input 
+          type="text" 
+          [(ngModel)]="merchantFilter" 
+          (input)="applyFilters()"
+          placeholder="Search merchant...">
+      </div>
+
+      <div class="filter-group">
+        <label>Start Date</label>
+        <input 
+          type="date" 
+          [(ngModel)]="startDate" 
+          (change)="applyFilters()">
+      </div>
+
+      <div class="filter-group">
+        <label>End Date</label>
+        <input 
+          type="date" 
+          [(ngModel)]="endDate" 
+          (change)="applyFilters()">
+      </div>
+    </div>
+
+    <button class="btn btn-secondary" (click)="clearFilters()">
+      Clear Filters
+    </button>
+  </div>
+
+  @if (loading()) {
+    <div class="loading">
+      <div class="spinner"></div>
+      <p>Loading transactions...</p>
+    </div>
+  } @else {
+    @if (filteredTransactions().length === 0) {
+      <div class="empty-state">
+        <p>No transactions found</p>
+      </div>
+    } @else {
+      <!-- Merchant Pie Chart -->
+      <div class="chart-card">
+        <h2>Top 10 Merchants by Amount @if(monthFilter()) { - {{ selectedMonthLabel() }} }</h2>
+        <div class="chart-container">
+          <canvas baseChart
+            [data]="merchantChartData"
+            [options]="merchantChartOptions"
+            type="pie">
+          </canvas>
+        </div>
+      </div>
+
+      <!-- Transactions Table -->
+      <div class="table-container">
+        <table class="transactions-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Merchant</th>
+              <th>Category</th>
+              <th>Type</th>
+              <th>Amount</th>
+              <th>Source</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (transaction of paginatedTransactions; track transaction.id) {
+              <tr>
+                <td>{{ transaction.date | date: 'MMM d, y' }}</td>
+                <td>
+                  <div class="merchant-cell">
+                    <span class="merchant-name">{{ transaction.merchant_clean }}</span>
+                    @if (transaction.merchant_raw !== transaction.merchant_clean) {
+                      <span class="merchant-raw">{{ transaction.merchant_raw }}</span>
+                    }
+                  </div>
+                </td>
+                <td>
+                  <span class="category-badge" [attr.data-category]="transaction.category || 'none'">
+                    {{ transaction.category || 'Uncategorized' }}
+                  </span>
+                </td>
+                <td>
+                  <span class="type-badge" [attr.data-type]="transaction.transaction_type?.toLowerCase() || 'debit'">
+                    {{ transaction.transaction_type || 'DEBIT' }}
+                  </span>
+                </td>
+                <td class="amount" [attr.data-type]="transaction.transaction_type?.toLowerCase() || 'debit'">
+                  ₹{{ transaction.amount.toLocaleString() }}
+                </td>
+                <td>
+                  <span class="source-badge">{{ transaction.source }}</span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      @if (totalPages > 1) {
+        <div class="pagination">
+          <button 
+            class="btn btn-icon" 
+            [disabled]="currentPage() === 1"
+            (click)="goToPage(currentPage() - 1)">
+            ‹
+          </button>
+          
+          <span class="page-info">
+            Page {{ currentPage() }} of {{ totalPages }}
+          </span>
+          
+          <button 
+            class="btn btn-icon" 
+            [disabled]="currentPage() === totalPages"
+            (click)="goToPage(currentPage() + 1)">
+            ›
+          </button>
+        </div>
+      }
+    }
+  }
+</div>

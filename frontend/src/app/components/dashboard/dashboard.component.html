@@ -1,0 +1,125 @@
+<div class="dashboard-container">
+  @if (loading()) {
+    <div class="loading">
+      <div class="spinner-large"></div>
+      <p>Loading dashboard...</p>
+    </div>
+  } @else {
+    <div class="dashboard-header">
+      <h1>Expense Dashboard</h1>
+    </div>
+
+    <!-- Quick Action Cards -->
+    <div class="quick-actions">
+      <a routerLink="/upload" class="action-card upload">
+        <div class="action-icon">📤</div>
+        <h3>Upload Statement</h3>
+        <p>Upload PDF statements to track expenses</p>
+      </a>
+
+      <a routerLink="/transactions" class="action-card transactions">
+        <div class="action-icon">💳</div>
+        <h3>View Transactions</h3>
+        <p>Browse and filter all transactions</p>
+      </a>
+
+      <a routerLink="/monthly-expenses" class="action-card monthly">
+        <div class="action-icon">📅</div>
+        <h3>Monthly Expenses</h3>
+        <p>View month-wise expense breakdown</p>
+      </a>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon" style="background: #bee3f8;">💰</div>
+        <div class="stat-content">
+          <div class="stat-label">Total Expenses</div>
+          <div class="stat-value">₹{{ totalExpenses().toLocaleString() }}</div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon" style="background: #c6f6d5;">📅</div>
+        <div class="stat-content">
+          <div class="stat-label">This Month</div>
+          <div class="stat-value">₹{{ thisMonthExpenses().toLocaleString() }}</div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon" style="background: #fed7e2;">📊</div>
+        <div class="stat-content">
+          <div class="stat-label">Total Transactions</div>
+          <div class="stat-value">{{ totalTransactions() }}</div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon" style="background: #feebc8;">🏆</div>
+        <div class="stat-content">
+          <div class="stat-label">Top Category</div>
+          <div class="stat-value">{{ topCategory() || 'N/A' }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="charts-grid">
+      <!-- Monthly Trend -->
+      <div class="chart-card full-width">
+        <h2>Monthly Expense Trend</h2>
+        <div class="chart-container">
+          <canvas baseChart
+            [data]="monthlyChartData"
+            [options]="monthlyChartOptions"
+            type="line">
+          </canvas>
+        </div>
+      </div>
+
+      <!-- Category Breakdown -->
+      <div class="chart-card">
+        <h2>Expenses by Category</h2>
+        <div class="chart-container">
+          <canvas baseChart
+            [data]="categoryChartData"
+            [options]="categoryChartOptions"
+            type="pie">
+          </canvas>
+        </div>
+      </div>
+
+      <!-- Top Merchants -->
+      <div class="chart-card">
+        <h2>Top 10 Merchants</h2>
+        <div class="chart-container">
+          <canvas baseChart
+            [data]="merchantChartData"
+            [options]="merchantChartOptions"
+            type="bar">
+          </canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Months Summary -->
+    @if (monthlySummary().length > 0) {
+      <div class="card">
+        <h2>Recent Months</h2>
+        <div class="month-list">
+          @for (month of monthlySummary().slice(0, 6); track month.month) {
+            <div class="month-item">
+              <div class="month-info">
+                <h3>{{ month.month_name }} {{ month.year }}</h3>
+                <p>{{ month.transaction_count }} transactions</p>
+              </div>
+              <div class="month-amount">₹{{ month.total_amount.toLocaleString() }}</div>
+            </div>
+          }
+        </div>
+      </div>
+    }
+  }
+</div>

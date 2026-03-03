@@ -1,0 +1,155 @@
+<div class="monthly-expenses-container">
+  <a routerLink="/dashboard" class="back-btn">
+    <span class="back-icon">←</span>
+    Back to Dashboard
+  </a>
+  
+  <div class="header">
+    <div class="header-left">
+      <h1>Monthly Expenses</h1>
+      <div class="summary">
+        <span class="summary-item">
+          Total: <strong>₹{{ getTotalExpenses().toLocaleString() }}</strong>
+        </span>
+        <span class="summary-item">
+          Average: <strong>₹{{ getAverageMonthly().toLocaleString('en-IN', { maximumFractionDigits: 0 }) }}</strong>
+        </span>
+      </div>
+    </div>
+    <a routerLink="/upload" class="btn btn-primary">
+      <span class="btn-icon">📤</span>
+      Upload Statement
+    </a>
+  </div>
+
+  <!-- Filters -->
+  <div class="filters-card">
+    <h3>Filters</h3>
+    <div class="filters-row">
+      <div class="filter-group">
+        <label>Year</label>
+        <select [(ngModel)]="selectedYear" (change)="applyFilters()">
+          @for (year of availableYears(); track year) {
+            <option [value]="year">{{ year }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label>Month</label>
+        <select [(ngModel)]="selectedMonth" (change)="applyFilters()">
+          <option [value]="null">All Months</option>
+          <option [value]="1">January</option>
+          <option [value]="2">February</option>
+          <option [value]="3">March</option>
+          <option [value]="4">April</option>
+          <option [value]="5">May</option>
+          <option [value]="6">June</option>
+          <option [value]="7">July</option>
+          <option [value]="8">August</option>
+          <option [value]="9">September</option>
+          <option [value]="10">October</option>
+          <option [value]="11">November</option>
+          <option [value]="12">December</option>
+        </select>
+      </div>
+
+      <button class="btn btn-secondary" (click)="clearFilters()">
+        Clear
+      </button>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <div class="loading">
+      <div class="spinner"></div>
+      <p>Loading monthly expenses...</p>
+    </div>
+  } @else {
+    @if (filteredSummary().length === 0) {
+      <div class="empty-state">
+        <p>No monthly data found</p>
+      </div>
+    } @else {
+      <!-- Monthly Summary Cards -->
+      <div class="months-grid">
+        @for (month of filteredSummary(); track month.month + '-' + month.year) {
+          <div class="month-card" [class.expanded]="isExpanded(month.year, month.month)">
+            <div class="month-header" (click)="toggleMonth(month.year, month.month)">
+              <div class="month-title-section">
+                <h2>{{ month.month_name }} {{ month.year }}</h2>
+                <button class="expand-btn" type="button">
+                  {{ isExpanded(month.year, month.month) ? '▼' : '▶' }}
+                </button>
+              </div>
+              <div class="month-total">₹{{ month.total_amount.toLocaleString() }}</div>
+            </div>
+
+            <div class="month-stats">
+              <div class="stat">
+                <span class="stat-label">Transactions</span>
+                <span class="stat-value">{{ month.transaction_count }}</span>
+              </div>
+              <div class="stat">
+                <span class="stat-label">Average</span>
+                <span class="stat-value">₹{{ (month.total_amount / month.transaction_count).toLocaleString('en-IN', { maximumFractionDigits: 0 }) }}</span>
+              </div>
+            </div>
+
+            <!-- Categories Breakdown -->
+            @if (month.categories.length > 0) {
+              <div class="categories-section">
+                <h4>By Category</h4>
+                <div class="categories-list">
+                  @for (category of month.categories; track category.category) {
+                    <div class="category-item">
+                      <div class="category-info">
+                        <span class="category-name">{{ category.category || 'Uncategorized' }}</span>
+                        <span class="category-count">{{ category.count }} txns</span>
+                      </div>
+                      <div class="category-amount">₹{{ category.amount.toLocaleString() }}</div>
+                    </div>
+                  }
+                </div>
+              </div>
+            }
+            
+            <!-- Expanded Transactions -->
+            @if (isExpanded(month.year, month.month)) {
+              <div class="transactions-section">
+                <h4>Transactions</h4>
+                @if (isLoadingTransactions(month.year, month.month)) {
+                  <div class="loading-txns">
+                    <div class="spinner-small"></div>
+                    <span>Loading transactions...</span>
+                  </div>
+                } @else {
+                  @if (getMonthTransactions(month.year, month.month).length > 0) {
+                    <div class="transactions-list">
+                      @for (txn of getMonthTransactions(month.year, month.month); track txn.id) {
+                        <div class="transaction-item">
+                          <div class="txn-left">
+                            <div class="txn-date">{{ txn.date | date: 'MMM d' }}</div>
+                            <div class="txn-merchant">
+                              <span class="merchant-name">{{ txn.merchant_clean }}</span>
+                              @if (txn.category) {
+                                <span class="txn-category">{{ txn.category }}</span>
+                              }
+                            </div>
+                          </div>
+                          <div class="txn-amount">₹{{ txn.amount.toLocaleString() }}</div>
+                        </div>
+                      }
+                    </div>
+                  } @else {
+                    <p class="no-transactions">No transactions found</p>
+                  }
+                }
+              </div>
+            }
+          </div>
+        }
+      </div>
+    }
+  }
+</div>
