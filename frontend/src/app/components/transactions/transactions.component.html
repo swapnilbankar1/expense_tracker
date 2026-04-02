@@ -136,11 +136,11 @@
                   </span>
                 </td>
                 <td>
-                  <span class="type-badge" [attr.data-type]="transaction.transaction_type?.toLowerCase() || 'debit'">
+                  <span class="type-badge" [attr.data-type]="transaction.transaction_type.toLowerCase() || 'debit'">
                     {{ transaction.transaction_type || 'DEBIT' }}
                   </span>
                 </td>
-                <td class="amount" [attr.data-type]="transaction.transaction_type?.toLowerCase() || 'debit'">
+                <td class="amount" [attr.data-type]="transaction.transaction_type.toLowerCase() || 'debit'">
                   ₹{{ transaction.amount.toLocaleString() }}
                 </td>
                 <td>

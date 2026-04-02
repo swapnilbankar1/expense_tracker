@@ -9,6 +9,7 @@ class TransactionBase(BaseModel):
     merchant_clean: str
     amount: float
     category: Optional[str] = None
+    transaction_type: str = "DEBIT"
     source: str
 
 
