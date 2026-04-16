@@ -1,9 +1,11 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from datetime import datetime
 from typing import Optional, List
 import shutil
 import os
+import traceback
 
 from app.core.database import SessionLocal
 from app.services.pdf_reader import read_pdf_transactions
@@ -13,8 +15,7 @@ from app.services.monthly_expense_service import get_monthly_summary, sync_month
 from app.models.transaction import Transaction
 from app.schemas.monthly_expense import (
     MonthlyExpenseSummary,
-    PDFUploadResponse,
-    MonthlyExpenseResponse
+    PDFUploadResponse
 )
 
 router = APIRouter(prefix="/monthly-expenses", tags=["Monthly Expenses"])
@@ -43,6 +44,7 @@ def upload_pdf_and_generate_monthly_expenses(file: UploadFile = File(...)):
     db: Session = SessionLocal()
     inserted = 0
     duplicates = 0
+    failed = 0
 
     # Process and save transactions
     for t in transactions:
@@ -55,35 +57,53 @@ def upload_pdf_and_generate_monthly_expenses(file: UploadFile = File(...)):
             
             transaction_date = datetime.strptime(t["date"], "%b %d, %Y").date()
             transaction_amount = float(str(t["amount"]).replace("₹", "").replace(",", ""))
+            external_txn_id = t.get("transaction_id") or t.get("id")
             
             # Check for duplicate transaction
-            existing = db.query(Transaction).filter(
-                Transaction.date == transaction_date,
-                Transaction.merchant_raw == t["description"],
-                Transaction.amount == transaction_amount
-            ).first()
-            
+            if external_txn_id:
+                existing = db.query(Transaction).filter(
+                    Transaction.transaction_id == external_txn_id
+                ).first()
+            else:
+                existing = db.query(Transaction).filter(
+                    Transaction.date == transaction_date,
+                    Transaction.merchant_raw == t["description"],
+                    func.abs(Transaction.amount - transaction_amount) < 0.01,
+                    Transaction.transaction_type == t.get("type", "DEBIT"),
+                    Transaction.source == t.get("source", "phonepe")
+                ).first()
+
             if existing:
                 duplicates += 1
                 continue
 
             txn = Transaction(
+                transaction_id=external_txn_id,
                 date=transaction_date,
                 merchant_raw=t["description"],
                 merchant_clean=merchant_clean,
                 amount=transaction_amount,
                 category=category,
                 transaction_type=t.get("type", "DEBIT"),
-                source="phonepe"
+                source=t.get("source", "phonepe"),
+                utr_no=t.get("utr_no")
             )
 
             db.add(txn)
             inserted += 1
         except Exception as e:
             print(f"Error processing transaction: {e}")
+            traceback.print_exc()
+            failed += 1
             continue
 
-    db.commit()
+    try:
+        db.commit()
+    except Exception as e:
+        print(f"Error committing transactions: {e}")
+        traceback.print_exc()
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to save transactions to database")
 
     # Generate monthly expense summary
     sync_monthly_expenses(db)
@@ -95,6 +115,7 @@ def upload_pdf_and_generate_monthly_expenses(file: UploadFile = File(...)):
         message="PDF processed successfully",
         transactions_inserted=inserted,
         duplicates_skipped=duplicates,
+        failed_transactions=failed,
         monthly_summary=monthly_summary
     )
 
@@ -138,11 +159,19 @@ def get_expenses_by_category(
                     category_totals[category] = {
                         "category": category,
                         "total_amount": 0,
-                        "transaction_count": 0
+                        "total_debit": 0,
+                        "total_credit": 0,
+                        "transaction_count": 0,
+                        "debit_count": 0,
+                        "credit_count": 0
                     }
 
                 category_totals[category]["total_amount"] += cat["amount"]
+                category_totals[category]["total_debit"] += cat.get("debit_amount", 0)
+                category_totals[category]["total_credit"] += cat.get("credit_amount", 0)
                 category_totals[category]["transaction_count"] += cat["count"]
+                category_totals[category]["debit_count"] += cat.get("debit_count", 0)
+                category_totals[category]["credit_count"] += cat.get("credit_count", 0)
 
         return {
             "year": year,

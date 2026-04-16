@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, case
 from app.models.transaction import Transaction
 from app.models.monthly_expense import MonthlyExpense
 from datetime import date
@@ -11,13 +11,34 @@ def calculate_monthly_expenses(db: Session, year: int = None, month: int = None)
     """
     Calculate month-wise expenses from transactions
     """
+    signed_amount = case(
+        (Transaction.transaction_type == 'DEBIT', Transaction.amount),
+        else_=-Transaction.amount
+    )
+    debit_amount = case(
+        (Transaction.transaction_type == 'DEBIT', Transaction.amount),
+        else_=0
+    )
+    credit_amount = case(
+        (Transaction.transaction_type == 'CREDIT', Transaction.amount),
+        else_=0
+    )
+
     query = db.query(
         func.extract('year', Transaction.date).label('year'),
         func.extract('month', Transaction.date).label('month'),
         Transaction.category,
         Transaction.source,
-        func.sum(Transaction.amount).label('total_amount'),
-        func.count(Transaction.id).label('transaction_count')
+        func.sum(signed_amount).label('total_amount'),
+        func.sum(debit_amount).label('total_debit'),
+        func.sum(credit_amount).label('total_credit'),
+        func.count(Transaction.id).label('transaction_count'),
+        func.sum(
+            case((Transaction.transaction_type == 'DEBIT', 1), else_=0)
+        ).label('debit_count'),
+        func.sum(
+            case((Transaction.transaction_type == 'CREDIT', 1), else_=0)
+        ).label('credit_count')
     )
 
     if year:
@@ -44,7 +65,11 @@ def calculate_monthly_expenses(db: Session, year: int = None, month: int = None)
             "category": row.category,
             "source": row.source,
             "total_amount": float(row.total_amount),
-            "transaction_count": row.transaction_count
+            "total_debit": float(row.total_debit or 0),
+            "total_credit": float(row.total_credit or 0),
+            "transaction_count": int(row.transaction_count or 0),
+            "debit_count": int(row.debit_count or 0),
+            "credit_count": int(row.credit_count or 0)
         }
         for row in results
     ]
@@ -91,17 +116,29 @@ def get_monthly_summary(db: Session, year: int = None, month: int = None) -> Lis
                 "month": data["month"],
                 "month_name": month_name[data["month"]],
                 "total_amount": 0,
+                "total_debit": 0,
+                "total_credit": 0,
                 "transaction_count": 0,
+                "debit_count": 0,
+                "credit_count": 0,
                 "categories": []
             }
 
         summary_dict[key]["total_amount"] += data["total_amount"]
+        summary_dict[key]["total_debit"] += data["total_debit"]
+        summary_dict[key]["total_credit"] += data["total_credit"]
         summary_dict[key]["transaction_count"] += data["transaction_count"]
+        summary_dict[key]["debit_count"] += data["debit_count"]
+        summary_dict[key]["credit_count"] += data["credit_count"]
         summary_dict[key]["categories"].append({
             "category": data["category"],
             "source": data["source"],
             "amount": data["total_amount"],
-            "count": data["transaction_count"]
+            "debit_amount": data["total_debit"],
+            "credit_amount": data["total_credit"],
+            "count": data["transaction_count"],
+            "debit_count": data["debit_count"],
+            "credit_count": data["credit_count"]
         })
 
     return list(summary_dict.values())

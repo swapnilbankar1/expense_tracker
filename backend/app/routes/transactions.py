@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, case
 from datetime import date
 from typing import Optional
 
@@ -47,7 +47,7 @@ def get_transactions_by_merchant(
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
     merchant: Optional[str] = None,
-    sort_by: str = Query("amount", regex="^(amount|count|merchant)$")
+    sort_by: str = Query("amount", pattern="^(amount|count|merchant)$")
 ):
     """
     Get aggregated transactions grouped by merchant.
@@ -55,10 +55,31 @@ def get_transactions_by_merchant(
     """
     db: Session = SessionLocal()
     
+    signed_amount = case(
+        (Transaction.transaction_type == "DEBIT", Transaction.amount),
+        else_=-Transaction.amount
+    )
+    debit_amount = case(
+        (Transaction.transaction_type == "DEBIT", Transaction.amount),
+        else_=0
+    )
+    credit_amount = case(
+        (Transaction.transaction_type == "CREDIT", Transaction.amount),
+        else_=0
+    )
+
     query = db.query(
         Transaction.merchant_clean.label('merchant'),
-        func.sum(Transaction.amount).label('total_amount'),
-        func.count(Transaction.id).label('transaction_count')
+        func.sum(signed_amount).label('total_amount'),
+        func.sum(debit_amount).label('total_debit'),
+        func.sum(credit_amount).label('total_credit'),
+        func.count(Transaction.id).label('transaction_count'),
+        func.sum(
+            case((Transaction.transaction_type == "DEBIT", 1), else_=0)
+        ).label('debit_count'),
+        func.sum(
+            case((Transaction.transaction_type == "CREDIT", 1), else_=0)
+        ).label('credit_count')
     )
     
     # Apply filters
@@ -74,7 +95,7 @@ def get_transactions_by_merchant(
     
     # Sort
     if sort_by == "amount":
-        query = query.order_by(func.sum(Transaction.amount).desc())
+        query = query.order_by(func.sum(signed_amount).desc())
     elif sort_by == "count":
         query = query.order_by(func.count(Transaction.id).desc())
     else:  # merchant
@@ -88,7 +109,11 @@ def get_transactions_by_merchant(
         {
             "merchant": row.merchant,
             "total_amount": float(row.total_amount) if row.total_amount else 0,
+            "total_debit": float(row.total_debit) if row.total_debit else 0,
+            "total_credit": float(row.total_credit) if row.total_credit else 0,
             "transaction_count": row.transaction_count,
+            "debit_count": int(row.debit_count or 0),
+            "credit_count": int(row.credit_count or 0),
             "average_amount": float(row.total_amount / row.transaction_count) if row.transaction_count else 0
         }
         for row in results

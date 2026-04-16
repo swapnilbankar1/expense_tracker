@@ -1,5 +1,6 @@
 export interface Transaction {
   id: number;
+  transaction_id?: string | null;
   date: string;
   merchant_raw: string;
   merchant_clean: string;

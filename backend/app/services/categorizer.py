@@ -1,27 +1,23 @@
-from app.core.llm import classify_transaction
 from app.utils.rules import rule_based_category
 
-CATEGORIES = [
-    "Food", "Groceries", "Medical", "Utilities",
-    "Travel", "Shopping", "Entertainment",
-    "Investment", "Transfer", "Other"
+# Keywords that indicate wallet top-ups or self-transfers (checked against raw description)
+_TRANSFER_KEYWORDS = [
+    "TOP-UP", "TOPUP", "ADD MONEY", "UPI LITE", "WALLET", "CASHBACK", "REFUND", "LOAD MONEY"
 ]
 
+
 def categorize(txn: dict) -> str:
-    rule = rule_based_category(txn["merchant_clean"])
+    merchant_clean = txn.get("merchant_clean", "")
+
+    # Check rule-based category first (covers expanded RULES dict)
+    rule = rule_based_category(merchant_clean)
     if rule:
         return rule
 
-    prompt = f"""
-Classify this transaction into ONE category.
+    # Fallback keyword check on merchant_clean for transfer/wallet operations
+    merchant_upper = merchant_clean.upper()
+    for kw in _TRANSFER_KEYWORDS:
+        if kw in merchant_upper:
+            return "Transfer"
 
-Merchant: {txn['merchant_clean']}
-Amount: {txn['amount']}
-Country: India
-
-Categories: {", ".join(CATEGORIES)}
-
-Respond ONLY with category name.
-"""
-
-    return classify_transaction(prompt)
+    return "Other"

@@ -4,6 +4,7 @@ from typing import Optional
 
 
 class TransactionBase(BaseModel):
+    transaction_id: Optional[str] = None
     date: date
     merchant_raw: str
     merchant_clean: str
